@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2.0 -21.5 217 217"><defs>
+<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="90" y1="10" x2="150" y2="165"><stop offset="0" stop-color="#f7e6c0"/><stop offset=".45" stop-color="#ddb978"/><stop offset="1" stop-color="#b98442"/></linearGradient>
+<linearGradient id="gs" gradientUnits="userSpaceOnUse" x1="50" y1="160" x2="212" y2="70"><stop offset="0" stop-color="#8f5f2a"/><stop offset=".35" stop-color="#d2a964"/><stop offset="1" stop-color="#f3dcaa"/></linearGradient>
+<linearGradient id="gt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4dfb2"/><stop offset=".55" stop-color="#d9b16c"/><stop offset="1" stop-color="#b9843f"/></linearGradient>
+<linearGradient id="gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8a66a" stop-opacity="0"/><stop offset=".5" stop-color="#c8a66a"/><stop offset="1" stop-color="#c8a66a" stop-opacity="0"/></linearGradient>
+<mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="640" height="173">
+<rect width="640" height="173" fill="#fff"/>
+<path d="M212,68 C168,79 118,97 76,121 L44,163 L71,163 C111,126 162,91 212,68 Z" fill="#000" stroke="#000" stroke-width="7" stroke-linejoin="round"/>
+</mask>
+</defs><g mask="url(#m)" fill="url(#g)">
+<path d="M112,11 L10,163 L43,163 L112,59 Z"/>
+<path d="M112,11 L211,163 L176,163 L112,59 Z"/>
+</g>
+<path d="M212,68 C168,79 118,97 76,121 L44,163 L71,163 C111,126 162,91 212,68 Z" fill="url(#gs)"/></svg>
