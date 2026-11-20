@@ -2,13 +2,13 @@
  * APX Capital – inline text editor
  * Open https://apxcapital.no/#admin, sign in with a GitHub fine-grained token
  * (repo capa79/apxcapital, permission "Contents: Read and write").
- * Edits are saved as a commit to index.html; GitHub Pages republishes in ~1 minute.
+ * Edits are saved as a commit to the current page's HTML file; GitHub Pages republishes in ~1 minute.
  */
 (() => {
   'use strict';
   const REPO = 'capa79/apxcapital';
   const BRANCH = 'main';
-  const FILE = 'index.html';
+  const FILE = (() => { const p = location.pathname.split('/').pop(); return !p ? 'index.html' : (p.includes('.') ? p : p + '.html'); })();
   const API = `https://api.github.com/repos/${REPO}`;
   const KEY = 'apx-admin-token';
   const EDITABLE = [
