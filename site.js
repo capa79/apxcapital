@@ -22,4 +22,26 @@
       thumbs.forEach(x => { const on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     }));
   });
+
+  // Hero animation: pointer parallax + pause when off-screen
+  const fx = document.querySelector('.hero-fx');
+  const hero = document.querySelector('.hero');
+  if (fx && hero) {
+    if (window.matchMedia('(pointer:fine)').matches && !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+      let raf = 0;
+      hero.addEventListener('pointermove', e => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          const r = hero.getBoundingClientRect();
+          fx.style.setProperty('--mx', ((e.clientX - r.left) / r.width - .5).toFixed(3));
+          fx.style.setProperty('--my', ((e.clientY - r.top) / r.height - .5).toFixed(3));
+        });
+      });
+      hero.addEventListener('pointerleave', () => { fx.style.setProperty('--mx', 0); fx.style.setProperty('--my', 0); });
+    }
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([en]) => fx.classList.toggle('paused', !en.isIntersecting)).observe(hero);
+    }
+  }
 })();
