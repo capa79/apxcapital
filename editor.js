@@ -1,8 +1,10 @@
 /*
  * APX Capital – inline text editor
  * Open https://apxcapital.no/#admin, sign in with a GitHub fine-grained token
- * (repo capa79/apxcapital, permission "Contents: Read and write").
- * Edits are saved as a commit to the current page's HTML file; GitHub Pages republishes in ~1 minute.
+ * (repo capa79/apxcapital only, permission "Contents: Read and write", with an expiry date).
+ * Only the edited text is written back into the page's source file from GitHub; the live page
+ * (which may contain injected scripts, extension markup or UI state) is never saved as a whole.
+ * GitHub Pages republishes in about a minute.
  */
 (() => {
   'use strict';
@@ -19,8 +21,9 @@
   ].join(',');
 
   const store = {
-    get() { try { return sessionStorage.getItem(KEY) || localStorage.getItem(KEY); } catch (e) { return null; } },
-    set(v, remember) { try { (remember ? localStorage : sessionStorage).setItem(KEY, v); } catch (e) {} },
+    // Token is kept for this browser tab only (never in localStorage), and any old remembered token is removed.
+    get() { try { localStorage.removeItem(KEY); return sessionStorage.getItem(KEY); } catch (e) { return null; } },
+    set(v) { try { sessionStorage.setItem(KEY, v); } catch (e) {} },
     clear() { try { sessionStorage.removeItem(KEY); localStorage.removeItem(KEY); } catch (e) {} }
   };
 
@@ -90,7 +93,7 @@
         <h4 id="apx-ed-title">Admin sign in</h4>
         <p>Paste your GitHub access token for <b>${REPO}</b> (Contents: read and write).</p>
         <input type="password" id="apx-ed-token" autocomplete="off" placeholder="github_pat_…">
-        <label><input type="checkbox" id="apx-ed-remember"> Remember on this device</label>
+        <p style="margin:-4px 0 14px;font-size:12px">Use a fine-grained token limited to this repository, with an expiry date. It is kept only until you close this tab.</p>
         <div class="apx-ed-err" id="apx-ed-err"></div>
         <div class="row"><button type="button" id="apx-ed-cancel">Cancel</button><button type="button" class="primary" id="apx-ed-ok">Sign in</button></div>
       </div>`;
@@ -107,7 +110,7 @@
       err.textContent = 'Checking…';
       try {
         await verify(t);
-        store.set(t, back.querySelector('#apx-ed-remember').checked);
+        store.set(t);
         close();
         startEditing();
       } catch (e) {
@@ -143,7 +146,8 @@
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
     document.execCommand('insertText', false, text);
   }
-  function onInput() { dirty = true; saveBtn.disabled = false; statusEl.textContent = 'Unsaved changes'; }
+  const changed = new Set();
+  function onInput(e) { changed.add(e.currentTarget); dirty = true; saveBtn.disabled = false; statusEl.textContent = 'Unsaved changes'; }
   function blockLinks(e) { if (editing && e.target.closest('a') && !e.target.closest('[data-editor-ui]')) e.preventDefault(); }
   function beforeUnload(e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } }
 
@@ -189,22 +193,45 @@
     return false;
   }
 
-  function serialize() {
-    const root = document.documentElement.cloneNode(true);
-    root.querySelectorAll('[data-editor-ui]').forEach(n => n.remove());
-    root.querySelectorAll('[data-apx-edit]').forEach(el => {
-      el.removeAttribute('contenteditable'); el.removeAttribute('spellcheck'); el.removeAttribute('data-apx-edit');
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      let n; while ((n = walker.nextNode())) n.nodeValue = n.nodeValue.replace(/\u00a0/g, ' ');
-    });
-    root.querySelectorAll('[style=""]').forEach(el => el.removeAttribute('style'));
-    const body = root.querySelector('body');
-    body.classList.remove('apx-editing');
-    if (!body.getAttribute('class')) body.removeAttribute('class');
-    const year = root.querySelector('#year'); if (year) year.textContent = '';
-    const nav = root.querySelector('#navlinks'); if (nav) { nav.classList.remove('open'); }
-    root.querySelectorAll('[class=""]').forEach(el => el.removeAttribute('class'));
-    return '<!doctype html>\n' + root.outerHTML + '\n';
+  // Keep only plain text and a small set of inline tags from an edited element.
+  const ALLOWED = { BR: [], EM: [], STRONG: [], B: [], I: ['class'], SPAN: ['class'] };
+  function cleanInto(target, source) {
+    const out = target.ownerDocument;
+    const walk = (from, to) => {
+      from.childNodes.forEach(n => {
+        if (n.nodeType === 3) { to.appendChild(out.createTextNode(n.nodeValue.replace(/ /g, ' '))); return; }
+        if (n.nodeType !== 1 || n.hasAttribute('data-editor-ui')) return;
+        const tag = n.tagName.toUpperCase();
+        if (['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'svg', 'SVG', 'TEMPLATE'].includes(tag)) return;
+        if (ALLOWED[tag]) {
+          const el = out.createElement(tag.toLowerCase());
+          ALLOWED[tag].forEach(a => { const v = n.getAttribute(a); if (v && /^[\w\- ]+$/.test(v)) el.setAttribute(a, v); });
+          to.appendChild(el); walk(n, el);
+        } else { walk(n, to); } // unwrap anything else (div, font, a …) but keep its text
+      });
+    };
+    while (target.firstChild) target.removeChild(target.firstChild);
+    walk(source, target);
+  }
+
+  function fromBase64(b64) {
+    const bin = atob(b64.replace(/\s/g, ''));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  // Apply edited text to the page's source file as stored on GitHub.
+  function applyEdits(sourceHtml) {
+    const doc = new DOMParser().parseFromString(sourceHtml, 'text/html');
+    const pick = d => [...d.querySelectorAll(EDITABLE)].filter(el => !el.closest('[data-editor-ui]'));
+    const src = pick(doc), live = [...document.querySelectorAll('[data-apx-edit]')];
+    if (src.length !== live.length) throw new Error('The page has changed since it was loaded. Reload and try again.');
+    for (let i = 0; i < live.length; i++) {
+      if (src[i].tagName !== live[i].tagName) throw new Error('The page has changed since it was loaded. Reload and try again.');
+      if (changed.has(live[i])) cleanInto(src[i], live[i]);
+    }
+    const dt = sourceHtml.match(/^\s*<!doctype[^>]*>/i);
+    return (dt ? dt[0].trim() : '<!doctype html>') + '\n' + doc.documentElement.outerHTML + '\n';
   }
 
   function toBase64(str) {
@@ -219,16 +246,17 @@
     saveBtn.disabled = true; statusEl.textContent = 'Publishing…';
     try {
       const current = await gh(`/contents/${FILE}?ref=${BRANCH}`);
+      const updated = applyEdits(fromBase64(current.content));
       await gh(`/contents/${FILE}`, {
         method: 'PUT',
         body: JSON.stringify({
-          message: 'Update website text via editor',
-          content: toBase64(serialize()),
+          message: `Update text on ${FILE} via editor`,
+          content: toBase64(updated),
           sha: current.sha,
           branch: BRANCH
         })
       });
-      dirty = false;
+      dirty = false; changed.clear();
       statusEl.textContent = 'Published – live in about a minute';
     } catch (e) {
       saveBtn.disabled = false;
@@ -245,7 +273,8 @@
     loginDialog();
   }
 
-  function check() { if (location.hash === '#admin' && !editing) enter(); }
+  const HOST_OK = ['apxcapital.no', 'www.apxcapital.no', 'localhost', '127.0.0.1'].includes(location.hostname);
+  function check() { if (HOST_OK && location.hash === '#admin' && !editing) enter(); }
   window.addEventListener('hashchange', check);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check); else check();
 })();
