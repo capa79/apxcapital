@@ -44,4 +44,18 @@
       new IntersectionObserver(([en]) => fx.classList.toggle('paused', !en.isIntersecting)).observe(hero);
     }
   }
+
+  // Venture cards: rotate screenshots while visible
+  if (!window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+    document.querySelectorAll('.vshot-imgs').forEach((box, n) => {
+      const imgs = box.querySelectorAll('img');
+      if (imgs.length < 2) return;
+      let i = 0, timer = 0;
+      const step = () => { imgs[i].classList.remove('on'); i = (i + 1) % imgs.length; imgs[i].classList.add('on'); };
+      const run = on => { clearInterval(timer); timer = on ? setInterval(step, 4000) : 0; };
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(([en]) => { setTimeout(() => run(en.isIntersecting), n * 1300); }).observe(box);
+      } else run(true);
+    });
+  }
 })();
