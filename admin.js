@@ -119,7 +119,7 @@
   // Cache results per period for a few minutes so switching periods or reloading the
   // page does not hit the API again. Refresh always fetches fresh numbers.
   const CACHE_MS = 5 * 60 * 1000;
-  const cacheKey = n => `apx-gc-cache-${n}-${new Date().toISOString().slice(0, 10)}`;
+  const cacheKey = n => `apx-gc-cache2-${n}-${new Date().toISOString().slice(0, 10)}`;
   const cacheGet = n => { try { const c = JSON.parse(ss.get(cacheKey(n)) || 'null'); return c && Date.now() - c.t < CACHE_MS ? c : null; } catch (e) { return null; } };
   const cacheSet = (n, data) => ss.set(cacheKey(n), JSON.stringify({ t: Date.now(), data }));
 
@@ -160,24 +160,91 @@
     return { cur: { start: iso(start), end: iso(end) }, prev: { start: iso(pStart), end: iso(pEnd) } };
   }
 
-  function fillList(id, items, nameOf, total) {
-    const ul = $(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  function spark(stats) {
+    const v = (stats || []).map(x => x.daily || 0);
+    if (v.length < 2) return null;
+    const max = Math.max(1, ...v), W = 70, H = 18;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'spark'); svg.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS(NS, 'polyline');
+    p.setAttribute('points', v.map((x, i) => `${(i / (v.length - 1) * W).toFixed(1)},${(H - 1 - x / max * (H - 2)).toFixed(1)}`).join(' '));
+    svg.appendChild(p);
+    return svg;
+  }
+
+  // opts.detail(item) -> API path for a drill-down list (or null); opts.detailName(item) -> label; opts.spark -> show per-day sparkline
+  function fillList(id, items, nameOf, opts = {}) {
+    const ul = opts.target || $(id);
     ul.textContent = '';
     if (!items || !items.length) { ul.innerHTML = '<li class="empty">No data for this period.</li>'; return; }
-    const max = total || Math.max(...items.map(i => i.count), 1);
+    const max = Math.max(...items.map(i => i.count), 1);
     items.forEach(i => {
       const li = document.createElement('li');
       const bar = document.createElement('i');
       bar.style.width = Math.max(2, Math.round(i.count / max * 100)) + '%';
       const s = document.createElement('span'); s.textContent = nameOf(i) || '(unknown)'; s.title = s.textContent;
       const b = document.createElement('b'); b.textContent = fmt(i.count);
-      li.append(bar, s, b); ul.appendChild(li);
+      li.append(bar, s);
+      if (opts.spark) { const sp = spark(i.stats); if (sp) li.appendChild(sp); }
+      li.appendChild(b);
+      ul.appendChild(li);
+      const path = opts.detail && opts.detail(i);
+      if (!path) return;
+      li.classList.add('drill');
+      li.tabIndex = 0; li.setAttribute('role', 'button'); li.setAttribute('aria-expanded', 'false');
+      s.title = s.textContent + ' – click for details';
+      let box = null;
+      const toggle = async () => {
+        if (box) { box.remove(); box = null; li.setAttribute('aria-expanded', 'false'); return; }
+        li.setAttribute('aria-expanded', 'true');
+        box = document.createElement('li'); box.className = 'subwrap';
+        const sub = document.createElement('ul'); sub.className = 'list sub';
+        sub.innerHTML = '<li class="empty">Loading…</li>';
+        box.appendChild(sub); li.after(box);
+        try {
+          const d = await gc(path, { ...range(days).cur, limit: 10 });
+          const rows = d.stats || d.refs || [];
+          if (box) fillList(null, rows, opts.detailName || (x => x.name), { target: sub });
+        } catch (e) { sub.innerHTML = '<li class="empty">Could not load details.</li>'; }
+      };
+      li.addEventListener('click', toggle);
+      li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
     });
   }
 
   const PAGE_NAMES = { '/': 'Home', '/index.html': 'Home', '/projects.html': 'Ventures', '/projects': 'Ventures', '/privacy.html': 'Privacy', '/privacy': 'Privacy' };
   const pageName = h => PAGE_NAMES[h.path] ? `${PAGE_NAMES[h.path]}  ·  ${h.path}` : (h.title || h.path);
   const refName = r => (r.name === '' ? 'Direct / unknown' : r.name);
+  const SIZE_NAMES = { phone: 'Phones (up to 600 px)', tablet: 'Tablets (600–1000 px)', desktop: 'Computers (1000–1920 px)', desktophd: 'Large screens (over 1920 px)', unknown: 'Unknown' };
+  const sizeName = s => SIZE_NAMES[s.id] || s.name || s.id;
+  const pxName = s => (s.name === '' || s.name === '0' ? 'Unknown' : `${s.name} px wide`);
+  const enc = encodeURIComponent;
+
+  // Visitors by hour of day, summed over the period and shifted from UTC to this browser's time zone.
+  function hourChart(stats) {
+    const sum = new Array(24).fill(0);
+    stats.forEach(d => (d.hourly || []).forEach((v, h) => { sum[h] += v; }));
+    const off = Math.round(-new Date().getTimezoneOffset() / 60);
+    const local = sum.map((_, h) => sum[((h - off) % 24 + 24) % 24]);
+    const box = $('hours'); box.textContent = '';
+    const max = Math.max(1, ...local), W = 480, H = 150, pb = 18;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Visitors by hour of day');
+    const bw = W / 24;
+    local.forEach((v, h) => {
+      const hh = (H - pb - 4) * v / max;
+      const r = document.createElementNS(NS, 'rect');
+      [['class', 'b'], ['x', h * bw + bw * .15], ['y', H - pb - hh], ['width', bw * .7], ['height', Math.max(v ? 1 : 0, hh)], ['rx', 1]].forEach(([k, x]) => r.setAttribute(k, x));
+      const t = document.createElementNS(NS, 'title'); t.textContent = `${String(h).padStart(2, '0')}:00–${String(h).padStart(2, '0')}:59: ${v}`; r.appendChild(t);
+      svg.appendChild(r);
+      if (h % 3 === 0) { const tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', h * bw + bw / 2); tx.setAttribute('y', H - 4); tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('class', 'ax'); tx.textContent = String(h).padStart(2, '0'); svg.appendChild(tx); }
+    });
+    box.appendChild(svg);
+    const peak = local.indexOf(Math.max(...local));
+    $('hours-peak').textContent = local[peak] ? `Busiest hour: ${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00 (your local time)` : '';
+  }
 
   function chart(stats) {
     const box = $('chart');
@@ -243,9 +310,12 @@
         data.br = await step('browsers', () => gc('/stats/browsers', { ...q, limit: 6 }));
         data.sy = await step('systems', () => gc('/stats/systems', { ...q, limit: 6 }));
         data.sz = await step('screen sizes', () => gc('/stats/sizes', q));
+        data.lang = await step('languages', () => gc('/stats/languages', q));
+        data.camp = await step('campaigns', () => gc('/stats/campaigns', q));
+        data.no = await step('regions in Norway', () => gc('/stats/locations/NO', { ...r.cur, limit: 15 }));
         cacheSet(days, data);
       }
-      const { total, prev, hits, refs, loc, br, sy, sz } = data;
+      const { total, prev, hits, refs, loc, br, sy, sz, lang = {}, camp = {}, no = {} } = data;
 
       const st = total.stats || [];
       const today = st.length ? st[st.length - 1].daily : 0;
@@ -263,14 +333,19 @@
       $('k-events').textContent = fmt(total.total_events || 0);
 
       chart(st);
+      hourChart(st);
       const H = hits.hits || [];
-      fillList('l-pages', H.filter(h => !h.event).slice(0, 10), pageName);
-      fillList('l-events', H.filter(h => h.event).slice(0, 10), h => h.title || h.path);
-      fillList('l-refs', refs.stats, refName);
-      fillList('l-loc', loc.stats, s => s.name);
-      fillList('l-browsers', br.stats, s => s.name);
-      fillList('l-systems', sy.stats, s => s.name);
-      fillList('l-sizes', sz.stats, s => s.name);
+      const refsOf = h => (h.path_id ? `/stats/hits/${h.path_id}` : null);
+      fillList('l-pages', H.filter(h => !h.event).slice(0, 10), pageName, { spark: days > 1, detail: refsOf, detailName: refName });
+      fillList('l-events', H.filter(h => h.event).slice(0, 10), h => h.title || h.path, { spark: days > 1, detail: refsOf, detailName: refName });
+      fillList('l-refs', refs.stats, refName, { detail: x => (x.name ? `/stats/toprefs/${enc(x.name)}` : null), detailName: x => pageName({ path: x.name }) });
+      fillList('l-camp', camp.stats, s => s.name, { detail: x => `/stats/campaigns/${enc(x.id)}`, detailName: refName });
+      fillList('l-loc', loc.stats, s => s.name, { detail: x => (x.id ? `/stats/locations/${enc(x.id)}` : null) });
+      fillList('l-regions', no.stats, s => s.name);
+      fillList('l-lang', lang.stats, s => s.name);
+      fillList('l-browsers', br.stats, s => s.name, { detail: x => (x.name ? `/stats/browsers/${enc(x.name)}` : null) });
+      fillList('l-systems', sy.stats, s => s.name, { detail: x => (x.name ? `/stats/systems/${enc(x.name)}` : null) });
+      fillList('l-sizes', (sz.stats || []).filter(x => x.count > 0), sizeName, { detail: x => `/stats/sizes/${enc(x.id)}`, detailName: pxName });
       $('updated').textContent = 'Updated ' + new Date(cached ? cached.t : Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       $('updated').textContent = '';

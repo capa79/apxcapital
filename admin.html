@@ -48,6 +48,18 @@
 .list li span{position:relative;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list li b{position:relative;z-index:1;font-weight:600;color:var(--gold2)}
 .list .empty{color:var(--muted);font-size:13px;padding:8px 0}
+.list li.drill{cursor:pointer}
+.list li.drill:hover span,.list li.drill:focus span{color:var(--gold2)}
+.list li.drill span:after{content:" ›";color:var(--gold);opacity:.7}
+.list li.drill[aria-expanded=true] span:after{content:" ⌄"}
+.list li.subwrap{display:block;padding:2px 0 8px 14px;border-bottom:1px solid rgba(215,226,239,.06)}
+.list.sub li{font-size:12px;padding:5px 8px;color:#c5ced8}
+.list.sub li i{background:rgba(200,166,106,.08)}
+.spark{flex:0 0 70px;width:70px;height:18px;align-self:center;position:relative;z-index:1;margin-left:auto}
+.spark polyline{fill:none;stroke:var(--gold);stroke-width:1.4;vector-effect:non-scaling-stroke}
+.list li span{flex:1 1 auto}
+.chart .hours svg{height:150px}
+code{font-size:12px;color:var(--gold2)}
 .links2 a{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(215,226,239,.08);font-size:13px}
 .links2 a:last-child{border-bottom:0}
 .links2 a:hover{color:var(--gold2)}
@@ -117,13 +129,22 @@
 <div class="kpi"><div class="l">Clicks tracked</div><div class="v" id="k-events">–</div><div class="d">Email, CTA and venture links</div></div>
 </div>
 <section class="panel chart"><h2 id="chart-title">Visitors per day</h2><div id="chart"></div></section>
+<p class="note" style="margin:0 0 12px">Tip: click a row to see more detail – where a page's visitors came from, which pages a site sent people to, browser versions, regions and exact screen widths.</p>
 <div class="grid2">
 <section class="panel"><h2>Most visited pages</h2><ul class="list" id="l-pages"></ul></section>
 <section class="panel"><h2>Clicks</h2><ul class="list" id="l-events"></ul></section>
 </div>
 <div class="grid2">
 <section class="panel"><h2>Where visitors come from</h2><ul class="list" id="l-refs"></ul></section>
+<section class="panel"><h2>Campaigns</h2><ul class="list" id="l-camp"></ul><p class="note">Visits from links tagged with <code>?utm_campaign=…</code>, e.g. a LinkedIn post or your email signature.</p></section>
+</div>
+<div class="grid2">
 <section class="panel"><h2>Countries</h2><ul class="list" id="l-loc"></ul></section>
+<section class="panel"><h2>Regions in Norway</h2><ul class="list" id="l-regions"></ul></section>
+</div>
+<div class="grid2">
+<section class="panel chart"><h2>Time of day</h2><div id="hours" class="hours"></div><p class="note" id="hours-peak"></p></section>
+<section class="panel"><h2>Languages</h2><ul class="list" id="l-lang"></ul></section>
 </div>
 <div class="grid3">
 <section class="panel"><h2>Browsers</h2><ul class="list" id="l-browsers"></ul></section>
