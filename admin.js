@@ -84,17 +84,44 @@
   }
 
   /* ---------- GoatCounter ---------- */
+  // The API allows 4 requests per second, and the browser sends a CORS preflight
+  // (OPTIONS) before every call because of the Authorization header – so each call
+  // costs two requests. Space calls 700 ms apart (~3 requests/second incl. preflight).
+  // A 429 on the preflight comes back without CORS headers and surfaces as
+  // "Failed to fetch", so network errors are retried with a back-off as well.
+  const GAP = 700;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   let last = 0;
-  async function gc(path, params) {
-    const wait = Math.max(0, last + 300 - Date.now()); // API allows 4 requests per second
-    last = Date.now() + wait;
-    if (wait) await new Promise(r => setTimeout(r, wait));
+  async function gc(path, params, tries = 4) {
     const q = new URLSearchParams(params).toString();
-    const res = await fetch(`${GC}${path}${q ? '?' + q : ''}`, { headers: { Authorization: `Bearer ${gcKey}` } });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { const e = new Error(data.error || (data.errors && JSON.stringify(data.errors)) || res.statusText); e.status = res.status; throw e; }
-    return data;
+    for (let i = 0; ; i++) {
+      const wait = Math.max(0, last + GAP - Date.now());
+      last = Date.now() + wait;
+      if (wait) await sleep(wait);
+      let res;
+      try {
+        res = await fetch(`${GC}${path}${q ? '?' + q : ''}`, { headers: { Authorization: `Bearer ${gcKey}` } });
+      } catch (netErr) { // most often a rate-limited preflight
+        if (i < tries - 1) { last = Date.now() + 1500 * (i + 1); continue; }
+        throw new Error('GoatCounter is rate limiting requests. Wait a few seconds and press Refresh.');
+      }
+      if (res.status === 429 && i < tries - 1) {
+        const reset = Number(res.headers.get('X-Rate-Limit-Reset')) || (i + 1);
+        last = Date.now() + reset * 1000;
+        continue;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { const e = new Error(data.error || (data.errors && JSON.stringify(data.errors)) || res.statusText); e.status = res.status; throw e; }
+      return data;
+    }
   }
+
+  // Cache results per period for a few minutes so switching periods or reloading the
+  // page does not hit the API again. Refresh always fetches fresh numbers.
+  const CACHE_MS = 5 * 60 * 1000;
+  const cacheKey = n => `apx-gc-cache-${n}-${new Date().toISOString().slice(0, 10)}`;
+  const cacheGet = n => { try { const c = JSON.parse(ss.get(cacheKey(n)) || 'null'); return c && Date.now() - c.t < CACHE_MS ? c : null; } catch (e) { return null; } };
+  const cacheSet = (n, data) => ss.set(cacheKey(n), JSON.stringify({ t: Date.now(), data }));
 
   async function connectGc() {
     const k = $('gc-key').value.trim();
@@ -194,7 +221,7 @@
   }
 
   let loading = false;
-  async function loadStats() {
+  async function loadStats(force) {
     if (loading) return;
     loading = true;
     const err = $('stats-err'); err.textContent = '';
@@ -202,14 +229,23 @@
     const r = range(days);
     const q = { ...r.cur, limit: 10 };
     try {
-      const total = await gc('/stats/total', r.cur);
-      const prev = await gc('/stats/total', r.prev);
-      const hits = await gc('/stats/hits', { ...r.cur, limit: 50 });
-      const refs = await gc('/stats/toprefs', q);
-      const loc = await gc('/stats/locations', q);
-      const br = await gc('/stats/browsers', { ...q, limit: 6 });
-      const sy = await gc('/stats/systems', { ...q, limit: 6 });
-      const sz = await gc('/stats/sizes', q);
+      const cached = force === true ? null : cacheGet(days);
+      let data;
+      if (cached) data = cached.data;
+      else {
+        const step = (label, p) => { $('updated').textContent = `Loading ${label}…`; return p(); };
+        data = {};
+        data.total = await step('visitors', () => gc('/stats/total', r.cur));
+        data.prev = await step('previous period', () => gc('/stats/total', r.prev));
+        data.hits = await step('pages', () => gc('/stats/hits', { ...r.cur, limit: 50 }));
+        data.refs = await step('referrers', () => gc('/stats/toprefs', q));
+        data.loc = await step('countries', () => gc('/stats/locations', q));
+        data.br = await step('browsers', () => gc('/stats/browsers', { ...q, limit: 6 }));
+        data.sy = await step('systems', () => gc('/stats/systems', { ...q, limit: 6 }));
+        data.sz = await step('screen sizes', () => gc('/stats/sizes', q));
+        cacheSet(days, data);
+      }
+      const { total, prev, hits, refs, loc, br, sy, sz } = data;
 
       const st = total.stats || [];
       const today = st.length ? st[st.length - 1].daily : 0;
@@ -235,7 +271,7 @@
       fillList('l-browsers', br.stats, s => s.name);
       fillList('l-systems', sy.stats, s => s.name);
       fillList('l-sizes', sz.stats, s => s.name);
-      $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      $('updated').textContent = 'Updated ' + new Date(cached ? cached.t : Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       $('updated').textContent = '';
       if (e.status === 401 || e.status === 403) { forgetGc(); $('gc-err').textContent = 'The statistics key no longer works. Add a new one.'; }
@@ -250,7 +286,7 @@
   $('gc-ok').addEventListener('click', connectGc);
   $('gc-key').addEventListener('keydown', e => { if (e.key === 'Enter') connectGc(); });
   $('gc-forget').addEventListener('click', forgetGc);
-  $('refresh').addEventListener('click', loadStats);
+  $('refresh').addEventListener('click', () => loadStats(true));
   $('skipgc').addEventListener('change', e => { if (e.target.checked) ls.set('skipgc', 't'); else ls.del('skipgc'); });
   $('range').addEventListener('click', e => {
     const b = e.target.closest('button[data-days]'); if (!b || loading) return;
