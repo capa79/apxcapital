@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com https://apxcapital.goatcounter.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080d15">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>Admin — APX Capital</title>
+<link rel="stylesheet" href="site.css">
+<style>
+.adm{padding:56px 0 90px}
+.adm h1{font-size:clamp(38px,5vw,56px);margin:14px 0 10px}
+.adm .sub{color:var(--muted);font-size:14px;margin:0 0 34px}
+.panel{border:1px solid var(--line);background:linear-gradient(145deg,#101a28,#0b121c);padding:26px}
+.panel h2{font:400 22px Georgia,serif;margin:0 0 16px}
+.panel p{color:var(--muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+.field{width:100%;padding:12px 13px;border-radius:4px;border:1px solid rgba(215,226,239,.25);background:#080d15;color:var(--text);font-size:14px;margin:0 0 10px}
+.check{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin:4px 0 16px}
+.err{color:#ff9b8a;font-size:12px;min-height:18px;margin:0 0 8px}
+.login{max-width:470px}
+.btn.small{padding:10px 15px;font-size:10px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 26px}
+.bar .grp{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:flex;border:1px solid var(--line);border-radius:30px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--muted);padding:9px 15px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.seg button.on{background:var(--gold);color:#111821;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 18px}
+.kpi{background:#0b121c;padding:22px 22px 20px}
+.kpi .l{color:var(--muted);font-size:10px;letter-spacing:.18em;text-transform:uppercase}
+.kpi .v{font:400 38px/1.1 Georgia,serif;margin:10px 0 4px;color:var(--text)}
+.kpi .d{font-size:12px;color:var(--muted)}
+.kpi .d.up{color:#8fd19e}.kpi .d.down{color:#ff9b8a}
+.chart{margin:0 0 18px}
+.chart svg{display:block;width:100%;height:220px}
+.chart .ax{fill:#7f8d9c;font-size:10px;font-family:Inter,system-ui,sans-serif}
+.chart rect.b{fill:var(--gold)}
+.chart rect.b:hover{fill:var(--gold2)}
+.chart line{stroke:rgba(215,226,239,.10)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:0 0 18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin:0 0 18px}
+.list{list-style:none;margin:0;padding:0}
+.list li{position:relative;display:flex;justify-content:space-between;gap:12px;padding:8px 10px;font-size:13px;border-bottom:1px solid rgba(215,226,239,.06)}
+.list li:last-child{border-bottom:0}
+.list li i{position:absolute;left:0;top:3px;bottom:3px;background:rgba(200,166,106,.13);border-radius:2px;z-index:0}
+.list li span{position:relative;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list li b{position:relative;z-index:1;font-weight:600;color:var(--gold2)}
+.list .empty{color:var(--muted);font-size:13px;padding:8px 0}
+.links2 a{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(215,226,239,.08);font-size:13px}
+.links2 a:last-child{border-bottom:0}
+.links2 a:hover{color:var(--gold2)}
+.commits li span{white-space:normal}
+.commits small{display:block;color:var(--muted);font-size:11px}
+.note{color:#7f8d9c;font-size:12px;margin-top:10px}
+.hidden{display:none!important}
+@media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}.grid2,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topline"></div>
+<header><div class="wrap nav"><a class="brand" href="index.html" aria-label="APX Capital home"><img class="brand-logo" src="apx-capital-logo.svg" width="205" height="55" alt="APX Capital"></a><div class="navright"><a class="btn ghost small hidden" id="signout" href="#"><span>Sign out</span></a></div></div></header>
+<main class="adm"><div class="wrap">
+<div class="kicker">Admin</div>
+<h1>Site dashboard</h1>
+<p class="sub" id="sub">Sign in to edit the site and see visitor statistics.</p>
+
+<!-- Step 1: sign in with GitHub token -->
+<section class="panel login" id="login" style="padding:26px">
+<h2>Admin sign in</h2>
+<p>Paste your GitHub access token for <b>capa79/apxcapital</b> (fine-grained, this repository only, “Contents: Read and write”, with an expiry date). It is kept only until you close this tab.</p>
+<input class="field" type="password" id="gh-token" autocomplete="off" placeholder="github_pat_…" aria-label="GitHub access token">
+<div class="err" id="gh-err"></div>
+<button class="btn" type="button" id="gh-ok"><span>Sign in</span><span class="arrow">↗</span></button>
+</section>
+
+<!-- Dashboard -->
+<div id="dash" class="hidden">
+<div class="grid3">
+<section class="panel"><h2>Edit the site</h2><div class="links2">
+<a href="index.html#admin">Home page <span>Edit ↗</span></a>
+<a href="projects.html#admin">Ventures page <span>Edit ↗</span></a>
+<a href="privacy.html#admin">Privacy page <span>Edit ↗</span></a>
+</div><p class="note">Opens the page in edit mode. Click any text, then Publish.</p></section>
+<section class="panel"><h2>Tools</h2><div class="links2">
+<a href="https://apxcapital.goatcounter.com" target="_blank" rel="noopener">Full statistics (GoatCounter) <span>↗</span></a>
+<a href="https://github.com/capa79/apxcapital" target="_blank" rel="noopener">Source code (GitHub) <span>↗</span></a>
+<a href="https://search.google.com/search-console" target="_blank" rel="noopener">Google Search Console <span>↗</span></a>
+</div>
+<label class="check" style="margin:14px 0 0"><input type="checkbox" id="skipgc"> Don't count my own visits on this device</label></section>
+<section class="panel"><h2>Recent changes</h2><ul class="list commits" id="commits"><li class="empty">Loading…</li></ul></section>
+</div>
+
+<!-- Step 2: GoatCounter key (statistics) -->
+<section class="panel login hidden" id="gc-login" style="margin:0 0 18px">
+<h2>Connect visitor statistics</h2>
+<p>Create a key in GoatCounter: sign in at apxcapital.goatcounter.com → your user menu → <b>API</b> → new key with only <b>“Read statistics”</b> ticked. Paste it here.</p>
+<input class="field" type="password" id="gc-key" autocomplete="off" placeholder="GoatCounter API key" aria-label="GoatCounter API key">
+<label class="check"><input type="checkbox" id="gc-remember" checked> Remember on this device (read-only key)</label>
+<div class="err" id="gc-err"></div>
+<button class="btn" type="button" id="gc-ok"><span>Connect</span><span class="arrow">↗</span></button>
+</section>
+
+<div id="stats" class="hidden">
+<div class="bar">
+<div class="seg" id="range" role="group" aria-label="Period">
+<button type="button" data-days="1">Today</button><button type="button" data-days="7">7 days</button><button type="button" data-days="30" class="on">30 days</button><button type="button" data-days="90">90 days</button><button type="button" data-days="365">12 months</button>
+</div>
+<div class="grp"><span class="note" id="updated" style="margin:0;align-self:center"></span><button class="btn ghost small" type="button" id="refresh"><span>Refresh</span></button><button class="btn ghost small" type="button" id="gc-forget"><span>Disconnect stats</span></button></div>
+</div>
+<div class="err" id="stats-err"></div>
+<div class="kpis">
+<div class="kpi"><div class="l">Visitors</div><div class="v" id="k-visitors">–</div><div class="d" id="k-change"></div></div>
+<div class="kpi"><div class="l">Visitors today</div><div class="v" id="k-today">–</div><div class="d" id="k-yesterday"></div></div>
+<div class="kpi"><div class="l">Average per day</div><div class="v" id="k-avg">–</div><div class="d" id="k-best"></div></div>
+<div class="kpi"><div class="l">Clicks tracked</div><div class="v" id="k-events">–</div><div class="d">Email, CTA and venture links</div></div>
+</div>
+<section class="panel chart"><h2 id="chart-title">Visitors per day</h2><div id="chart"></div></section>
+<div class="grid2">
+<section class="panel"><h2>Most visited pages</h2><ul class="list" id="l-pages"></ul></section>
+<section class="panel"><h2>Clicks</h2><ul class="list" id="l-events"></ul></section>
+</div>
+<div class="grid2">
+<section class="panel"><h2>Where visitors come from</h2><ul class="list" id="l-refs"></ul></section>
+<section class="panel"><h2>Countries</h2><ul class="list" id="l-loc"></ul></section>
+</div>
+<div class="grid3">
+<section class="panel"><h2>Browsers</h2><ul class="list" id="l-browsers"></ul></section>
+<section class="panel"><h2>Operating systems</h2><ul class="list" id="l-systems"></ul></section>
+<section class="panel"><h2>Screen sizes</h2><ul class="list" id="l-sizes"></ul></section>
+</div>
+<p class="note">Numbers are unique visitors as counted by GoatCounter (no cookies). Days are in UTC.</p>
+</div>
+</div>
+</div></main>
+<footer><div class="wrap foot"><div class="footbrand">APX CAPITAL <span style="color:var(--gold)">/</span> <span>Admin</span></div><div class="footlinks"><a href="index.html">Home</a><a href="privacy.html">Privacy</a></div></div></footer>
+<script src="admin.js" defer></script>
+</body></html>
